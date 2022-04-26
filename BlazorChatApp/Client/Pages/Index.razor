@@ -1,23 +1,66 @@
-﻿@page "/"
+﻿@page "/register"
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
+<PageTitle>SignalR Chat</PageTitle>
+<h3>SignalR Chat</h3>
+
+@if(!IsConnected)
+{
+    <div class="input-group m-3 p-4 w-75">
+        <input @bind="name" class="form-control" placeholder="Name?">    
+        <input @bind="surname" class="form-control" placeholder="Surname?">
+            </div>
+<div class="input-group">
+        <input @bind="username" class="form-control" placeholder="Username?">
+        </div>
+        <div class="input-group m-3 p-4 w-25">
+
+        <button class="btn btn-primary form-control-append" href="/chat" @onclick="Connect">
+            Start Chat
+        </button>
+    </div>
+}
+else
+{
+    @page "/chat"
+    <textarea style="width: 100%; height: 500px;" @ref="TextAreaRef">
+        @messages
+    </textarea>
+    <div class="input-group">
+        <input @bind-value="message"
+        @bind-value:event="oninput"
+        @onkeyup="HandleInput"
+        class="form-control">
+        <button class="btn btn-primary form-group-append"
+        @onclick="Send"
+        disabled="@(!IsConnected)">
+        Send
+        </button>
+    </div>
+}
 
 @code {
     private HubConnection? hubConnection;
     private string messages = string.Empty;
+    private string name = string.Empty;
+    private string surname = string.Empty;
     private string username = string.Empty;
     private string message = string.Empty;
+    ElementReference TextAreaRef;
 
     private async Task Connect()
     {
         hubConnection = new HubConnectionBuilder()
-        .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
+        .WithUrl(NavigationManager.ToAbsoluteUri($"/chathub?username={username}"))
         .Build();
 
         hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
         {
-            var msg = $"{(string.IsNullOrEmpty(user) ? "" : username + ": ")} (message)";
+            var msg = $"{(string.IsNullOrEmpty(user) ? "" : user + ": ")}{message}";
             messages += msg + "\n";
+            JSRuntime.InvokeVoidAsync("scrollToBottom", TextAreaRef);
             StateHasChanged();
         });
 
@@ -30,6 +73,14 @@
         {
             await hubConnection.SendAsync("AddMessageToChat", username, message);
             message = string.Empty;
+        }
+    }
+
+    private async Task HandleInput(KeyboardEventArgs args)
+    {
+        if (args.Key.Equals("Enter"))
+        {
+            await Send();
         }
     }
 
